@@ -1,14 +1,33 @@
 
 /*
- * Quantumult X - IP 归属地增强版
+ * Quantumult X IP 归属地增强版
  * ip-api.com + proxycheck.io v3
  *
- * 第一行：国旗 城市
+ * 第一行：🇺🇸 洛杉矶
  * 第二行：IP | ISP | ASN | 网络类型
  */
 
-// 可选：填写 proxycheck.io 免费 API Key
+// 请换成你重新生成的 proxycheck API Key
 const API_KEY = "221893-l94t18-4652ge-09w242";
+
+// 城市中文映射
+const cityMap = {
+  "Los Angeles": "洛杉矶",
+  "San Jose": "圣何塞",
+  "San Francisco": "旧金山",
+  "New York": "纽约",
+  "Seattle": "西雅图",
+  "Chicago": "芝加哥",
+  "Dallas": "达拉斯",
+  "Tokyo": "东京",
+  "Osaka": "大阪",
+  "Singapore": "新加坡",
+  "Hong Kong": "香港",
+  "Taipei": "台北",
+  "Seoul": "首尔",
+  "London": "伦敦",
+  "Frankfurt am Main": "法兰克福"
+};
 
 function getFlag(code) {
   if (!/^[A-Z]{2}$/.test(code || "")) return "🌐";
@@ -17,7 +36,7 @@ function getFlag(code) {
   ).join("");
 }
 
-function getType(type, data) {
+function getType(network, data) {
   const types = {
     Residential: "家宽",
     Wireless: "移动网络",
@@ -25,20 +44,26 @@ function getType(type, data) {
     Business: "企业网络"
   };
 
-  if (types[type]) return types[type];
+  // 优先 proxycheck
+  if (network && types[network.type]) {
+    return types[network.type];
+  }
 
-  // proxycheck 无结果时，使用 ip-api 备用判断
+  // 其次 ip-api
   if (data.mobile === true) return "移动网络";
   if (data.hosting === true) return "机房";
 
+  // 不把未知 IP 强行识别为家宽
   return "未知";
 }
 
 function getISP(data, network) {
-  const raw = network?.provider ||
-              data.org ||
-              data.isp ||
-              "未知运营商";
+  const raw = String(
+    (network && network.provider) ||
+    data.org ||
+    data.isp ||
+    "未知运营商"
+  );
 
   const known = [
     [/DMIT/i, "DMIT"],
@@ -61,44 +86,64 @@ function getISP(data, network) {
     if (regex.test(raw)) return name;
   }
 
-  return raw
-    .replace(/,?\s*(Inc\.?|LLC|Ltd\.?|Limited|Corporation)$/i, "")
-    .trim();
+  return raw.replace(
+    /,?\s*(Inc\.?|LLC|Ltd\.?|Limited|Corporation)$/i,
+    ""
+  ).trim();
 }
 
-function display(data, network = {}) {
+function display(data, network) {
+  network = network || {};
+
   const ip = data.query || "未知IP";
-  const city = data.city || data.regionName ||
-               data.country || "未知地区";
+  const cityRaw = data.city ||
+                  data.regionName ||
+                  data.country ||
+                  "未知地区";
+
+  const city = cityMap[cityRaw] || cityRaw;
   const flag = getFlag(data.countryCode);
 
-  const asn = network.asn ||
-              (data.as || "").match(/AS\d+/i)?.[0] ||
-              "";
+  const asnRaw = String(
+    network.asn || data.as || ""
+  );
+
+  const asnMatch = asnRaw.match(/AS\d+/i);
+  const asn = asnMatch
+    ? asnMatch[0].toUpperCase()
+    : "未知ASN";
 
   const isp = getISP(data, network);
-  const type = getType(network.type, data);
+  const type = getType(network, data);
 
   const title = `${flag} ${city}`;
   const subtitle = [
-    ip, isp, asn, type
-  ].filter(Boolean).join(" | ");
+    ip,
+    isp,
+    asn,
+    type
+  ].join(" | ");
+
+  console.log(
+    "[GeoLocation] " + title + " / " + subtitle
+  );
 
   $done({
-    title,
-    subtitle,
-    ip,
+    title: title,
+    subtitle: subtitle,
+    ip: ip,
     description: [
       `IP：${ip}`,
-      `地区：${data.country || ""} ${city}`,
+      `国家：${data.country || ""}`,
+      `城市：${city}`,
       `运营商：${isp}`,
       `ASN：${asn}`,
-      `网络类型：${type}`,
-      `组织：${data.org || ""}`
+      `网络类型：${type}`
     ].join("\n")
   });
 }
 
+// 主程序
 try {
   const data = JSON.parse($response.body);
 
@@ -109,31 +154,55 @@ try {
     });
   } else {
     const ip = data.query;
-    const key = API_KEY
-      ? `&key=${encodeURIComponent(API_KEY)}`
-      : "";
 
-    const url =
-      `https://proxycheck.io/v3/${encodeURIComponent(ip)}?p=0${key}`;
+    if (!ip) {
+      display(data, {});
+    } else {
+      const key = API_KEY &&
+                  API_KEY !== "填写你的新API_KEY"
+        ? "?key=" + encodeURIComponent(API_KEY)
+        : "";
 
-    $task.fetch({
-      url,
-      method: "GET"
-    }).then(response => {
-      try {
-        const result = JSON.parse(response.body);
-        const network = result[ip]?.network || {};
-        display(data, network);
-      } catch (e) {
-        display(data);
-      }
-    }).catch(() => {
-      display(data);
-    });
+      const url =
+        "https://proxycheck.io/v3/" +
+        encodeURIComponent(ip) + key;
+
+      $task.fetch({
+        url: url,
+        method: "GET"
+      }).then(response => {
+        try {
+          const result = JSON.parse(response.body);
+
+          console.log(
+            "[GeoLocation] proxycheck status: " +
+            result.status
+          );
+
+          const network =
+            result[ip] && result[ip].network
+              ? result[ip].network
+              : {};
+
+          display(data, network);
+        } catch (error) {
+          console.log(
+            "[GeoLocation] Parse error: " + error
+          );
+          display(data, {});
+        }
+      }).catch(error => {
+        console.log(
+          "[GeoLocation] Request error: " + error
+        );
+        display(data, {});
+      });
+    }
   }
-} catch (e) {
+} catch (error) {
+  console.log("[GeoLocation] Error: " + error);
   $done({
     title: "脚本错误",
-    subtitle: String(e)
+    subtitle: String(error)
   });
 }
