@@ -8,7 +8,7 @@
  */
 
 // 可选：填写 proxycheck.io 免费 API Key
-const API_KEY = "";
+const API_KEY = "221893-l94t18-4652ge-09w242";
 
 function getFlag(code) {
   if (!/^[A-Z]{2}$/.test(code || "")) return "🌐";
