@@ -779,10 +779,15 @@ var type0=""
 //flag=1,2,3分别为 server、rewrite、rule 类型
 var flag = 1
 
-// retry with new UA, default use shadowrocket
-if (UARetry && !inRetry && version>920) {
-  $notify("⚠️ 将尝试使用其他 UA, 重新获取订阅内容","⚠️ 如仍旧无有效内容，请自行与节点提供商联系","⚠️ 本次尝试使用 User-Agent 为 ⬇️\n\n"+UA_Retry)
-  $done({retry: {user_agent: "Shadowrocket/3218 CFNetwork/3860.600.12 Darwin/25.5.0 iPhone18,1"}})
+// This provider's QuanX profile omits HY2. Its Mihomo response includes it.
+const retryHY2 = version >= 965 && typeQ == "server" && PProfile == 0 &&
+  /^https:\/\/fb\.750bet\.shop\/api\/v1\/dy\/[^/?#]+(?:[?#]|$)/i.test(link0) &&
+  /^\s*\[server_local\]\s*$/mi.test(content0) &&
+  /^\s*anytls\s*=/mi.test(content0) && !/^\s*hysteria2\s*=/mi.test(content0)
+const retryUA = retryHY2 ? "mihomo" : UARetry ? UA_Retry : ""
+if (retryUA && !inRetry && version > 920) {
+  $notify("⚠️ 将使用其他 UA 重新获取订阅", "", "User-Agent: " + retryUA)
+  $done({retry: {user_agent: retryUA}})
 } else {
   if (typeof($resource)!=="undefined" && PProfile == 0) {
   Parser()
@@ -4532,6 +4537,11 @@ function Clash2QX(cnt) {
     aa = aa.replace(new RegExp(patn[4][i], "gmi"),patn[0][i])
   }
   var bb = JSON.parse(aa).proxies
+  // Legacy YAML cleanup can remove list markers when a node starts with alpn.
+  if (!JCheck(cnt) && (!Array.isArray(bb) || bb.length == 0)) {
+    bb = yaml.parse(decodeUnicodeEscapes(cnt)).proxies
+  }
+  if (!Array.isArray(bb)) { return "" }
   if (Pdbg==1) { $notify("After YAML Parse", "content", JSON.stringify(bb))}
   //console.log(bb)
   var nl = bb.length

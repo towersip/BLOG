@@ -8,11 +8,11 @@ const parser = new vm.Script(fs.readFileSync(path.join(__dirname, '../public/res
 
 // Execute the complete Quantumult X entry point, including subscription detection,
 // field normalization, filtering, renaming and the final Base64-encoded output.
-function parse(content, { build = 965, params = '', type = 'server' } = {}) {
+function parse(content, { build = 965, params = '', type = 'server', link = 'https://example.com/sub', userAgent } = {}) {
   const notifications = [];
   const results = [];
   const context = vm.createContext({
-    $resource: { content, type, link: 'https://example.com/sub' + (params ? '#' + params : ''), tag: 'test' },
+    $resource: { content, type, user_agent: userAgent, link: link + (params ? '#' + params : ''), tag: 'test' },
     $environment: { version: 'Quantumult X 1.9.0 build ' + build },
     $notify: (...args) => notifications.push(args),
     $done: value => results.push(value),
@@ -20,7 +20,7 @@ function parse(content, { build = 965, params = '', type = 'server' } = {}) {
   });
   parser.runInContext(context, { timeout: 5000 });
   const output = results.at(-1)?.content || '';
-  return { content: Buffer.from(output, 'base64').toString('utf8'), notifications, context };
+  return { content: Buffer.from(output, 'base64').toString('utf8'), notifications, context, retry: results.at(-1)?.retry?.user_agent };
 }
 
 function field(content, name) {
@@ -234,4 +234,23 @@ test('keeps all nodes from wrapped Base64 subscriptions with a HY2 node', () => 
   const result = parse(wrapped).content.split('\n');
   assert.equal(result[0], nativeExamples[0]);
   assert.match(result[1], /^hysteria2=example.com:444, .*tag=second$/);
+});
+
+test('requests the provider’s Mihomo response when its QuanX profile omits HY2', () => {
+  const link = 'https://fb.750bet.shop/api/v1/dy/example-token';
+  const profile = '[server_local]\nanytls=example.com:443, password=pwd, tag=anytls';
+  assert.equal(parse(profile, { link }).retry, 'mihomo');
+  assert.equal(parse(profile, { link, build: 964 }).retry, undefined);
+  assert.equal(parse(profile, { link, userAgent: 'mihomo' }).retry, undefined);
+  assert.equal(parse(profile).retry, undefined);
+  assert.equal(parse(profile + '\n' + nativeExamples[0], { link }).retry, undefined);
+
+  const mihomo = [
+    'mixed-port: 7890', 'proxies:', '    - alpn:', '        - h3', '      name: hy2',
+    '      type: hysteria2', '      server: example.com', '      port: 443', '      password: pwd',
+    'proxy-groups: []',
+  ].join('\n');
+  const retried = parse(mihomo, { link, userAgent: 'mihomo' });
+  assert.equal(retried.retry, undefined);
+  assert.match(retried.content, /^hysteria2=example.com:443,/);
 });
