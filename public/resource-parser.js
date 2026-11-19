@@ -1079,6 +1079,15 @@ function RegCheck(total, typen, paraname,regpara) {
     $notify("🤖 " + typen + "  ➟ " + "⟦" + subtag + "⟧", "⛔️ 筛选正则: " + paraname + "=" + regpara, "⚠️ 筛选后剩余以下" + nolist + "个匹配项 \n ⨷ " + total.join("\n ⨷ "), sub_link)
   }
 }
+// Decode the whole subscription before looking for HY2 schemes. Base64
+// signatures depend on the byte offset and can be split by line wrapping.
+function IsBase64HY2(subs) {
+  var encoded = subs.replace(/\s/g, "")
+  return /^[A-Za-z0-9+/_-]+={0,2}$/.test(encoded) &&
+    encoded.replace(/=+$/, "").length % 4 != 1 &&
+    /(?:^|[\r\n])[^\S\r\n]*(?:hysteria2|hy2):\/\//i.test(Base64.decode(encoded))
+}
+
 //判断订阅类型
 function Type_Check(subs) {
     var type = "unknown"
@@ -1160,6 +1169,9 @@ function Type_Check(subs) {
       typec= "server-sip008"
       type = (typeQ == "unsupported" || typeQ =="server")? "Subs":"wrong-field"
       content0 = SIP2QuanX(content0)
+    } else if ((typeQ == "server" || typeQ == "unsupported") && IsBase64HY2(subs)) {
+      typec = "server-b64"
+      type = "Subs-B64Encode"
     } else if (SubK.some(NodeCheck1)) {  //b64加密的订阅类型
       typec="server-b64"
       type = (typeQ == "unsupported" || typeQ =="server")? "Subs-B64Encode":"wrong-field"
@@ -2433,7 +2445,7 @@ function Reality_Handle(cnt) {
 //混合订阅类型，用于未整体进行 base64 encode 以及已经 decode 后的类型
 function Subs2QX(subs, Pudp, Ptfo, Pcert0, PTls13) {
   if (Pdbg) {$notify("subs", "node", subs)}
-    var list0 = subs.split("\n");
+    var list0 = subs.split(/\r\n?|\n/);
     var QuanXK = ["shadowsocks=", "trojan=", "vmess=", "http=","socks5=", "vless=", "anytls=", "hysteria2="];
     var SurgeK = ["=ss,", "=vmess,", "=trojan,", "=http,", "=https,", "=custom,", "=socks5", "=socks5-tls","=anytls"];
     var LoonK = ["=Shadowsocks", "=ShadowsocksR", "=VLESS","=AnyTLS"]

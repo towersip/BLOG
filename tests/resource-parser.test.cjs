@@ -211,3 +211,27 @@ test('preserves an existing Trojan conversion', () => {
   const result = parse('trojan://pwd@example.com:443?sni=apple.com#test');
   assert.equal(result.content, 'trojan=example.com:443, password=pwd, over-tls=true, tls-verification=false, tls-host=apple.com, udp-relay=false, fast-open=false, tag=test');
 });
+
+test('detects short Base64 HY2 subscriptions with BOM, comments and wrapped encoding', () => {
+  for (const [prefix, scheme] of [
+    ['\uFEFF\n', 'hy2'],
+    ['# nodes\r\n', 'hysteria2'],
+    ['# nodes\r', 'hy2'],
+  ]) {
+    const encoded = Buffer.from(prefix + scheme + '://pwd@example.com#test').toString('base64url');
+    const wrapped = encoded.match(/.{1,5}/g).join('\r\n');
+    assert.ok(wrapped.length < 100);
+    for (const input of [encoded, wrapped]) {
+      assert.match(parse(input).content, /^hysteria2=example.com:443, .*tag=test$/);
+    }
+  }
+});
+
+test('keeps all nodes from wrapped Base64 subscriptions with a HY2 node', () => {
+  const payload = [uri, 'hy2://pwd@example.com:444#second'].join('\r\n');
+  const encoded = Buffer.from(payload).toString('base64');
+  const wrapped = encoded.match(/.{1,20}/g).join('\n');
+  const result = parse(wrapped).content.split('\n');
+  assert.equal(result[0], nativeExamples[0]);
+  assert.match(result[1], /^hysteria2=example.com:444, .*tag=second$/);
+});
