@@ -108,6 +108,9 @@ resource_parser_url = https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/mas
 ------------------------------
 */
 
+// 2026-11-19: Hysteria 2 requires Quantumult X 1.9.0 build 965+.
+// Supports native nodes, hysteria2:// / hy2:// and Clash subscriptions,
+// including Salamander, download bandwidth and port hopping.
 // ==== Parser Helper UI by Quantumult-X (918+) ====
 var $parser = $parser || {};
 
@@ -873,6 +876,12 @@ function ParseUnknown(cnt){
 }
 
 
+function UnsupportedNodeTypes() {
+  return "⚠️ 此版本暂不支持 " + (version < 965 ? "Hysteria2（需 1.9.0 build 965+）/" : "") +
+    "Tuic/Wireguard" + (version < 914 ? "/Anytls" : "") +
+    " 等类型, 以及 http-upgrade/xhttp/grpc/mkcp/h2 等类型 vless\n\n"
+}
+
 function ResourceParse() {
   //预处理，分流/重写等处理完成
   if (type0 == "Subs-B64Encode") { // subs2QX 负责所有节点的转换
@@ -988,11 +997,7 @@ function ResourceParse() {
       if (Pcnt == 1 && total!=undefined) {$notify("⟦" + subtag + "⟧"+"解析后最终返回内容" , "节点数量: " +total.split("\n").length, total)}
       total = PRelay==""? Base64.encode(total) : ServerRelay(total.split("\n"),PRelay) //强制节点类型 base64 加密后再导入 Quantumult X, 如果是relay，则转换成分流类型
       if (PNS !=0) {
-        if (version >913) {
-          $notify("⚠️ 存在 QuantumultX 不支持类型 ➟ ⟦"+subtag+"⟧", "⚠️ 已忽略相关节点，共计 ➟ "+PNS+" 条", "⚠️ 此版本暂不支持 Hysteria2/Tuic/Wireguard 等类型, 以及 http-upgrade/xhttp/grpc/mkcp/h2” 等类型 vless\n\n"+NSList.join("\n"))
-        } else {
-          $notify("⚠️ 存在 QuantumultX 不支持类型 ➟ ⟦"+subtag+"⟧", "⚠️ 已忽略相关节点，共计 ➟ "+PNS+" 条", "⚠️ 此版本暂不支持 Hysteria2/Tuic/Anytls 等类型, 以及 http-upgrade/xhttp/grpc/mkcp/h2” 等类型 vless\n\n"+NSList.join("\n"))
-        }
+        $notify("⚠️ 存在 QuantumultX 不支持类型 ➟ ⟦"+subtag+"⟧", "⚠️ 已忽略相关节点，共计 ➟ "+PNS+" 条", UnsupportedNodeTypes()+NSList.join("\n"))
       }
       if(Pflow==1) {
         //$notify("添加流量信息","xxx","xxxx")
@@ -1002,11 +1007,7 @@ function ResourceParse() {
     } else { // total length = 0
       if(Perror == 0) {
       if (PNS !=0) { // 全部为不支持类型节点
-        if (version >913) {
-          $notify("⚠️ QuantumultX 不支持该订阅内的任何节点➟ ⟦"+subtag+"⟧", "⚠️ 已忽略共计 ➟ "+PNS+" 条不支持节点，剩余 0️⃣ 条", "⚠️ 此版本暂不支持 Hysteria2/Tuic/Wireguard 等类型, 以及 http-upgrade/xhttp/grpc/mkcp/h2” 等类型 vless\n\n"+NSList.join("\n"))
-        } else {
-          $notify("⚠️ QuantumultX 不支持该订阅内的任何节点➟ ⟦"+subtag+"⟧", "⚠️ 已忽略共计 ➟ "+PNS+" 条不支持节点，剩余 0️⃣ 条", "⚠️ 此版本暂不支持 Hysteria2/Tuic/Anytls 等类型, 以及 http-upgrade/xhttp/grpc/mkcp/h2” 等类型 vless\n\n"+NSList.join("\n"))
-        }
+        $notify("⚠️ QuantumultX 不支持该订阅内的任何节点➟ ⟦"+subtag+"⟧", "⚠️ 已忽略共计 ➟ "+PNS+" 条不支持节点，剩余 0️⃣ 条", UnsupportedNodeTypes()+NSList.join("\n"))
         
       } else { // 其它原因
         $notify("❓❓ 该订阅 ➟ "+ "⟦" + subtag + "⟧ 解析后无有效节点", "⚠️⚠️ 解析后 Quantumult-X 支持节点数为 0️⃣ 条", "🚥🚥 请自行检查相关参数、确认节点类型, 或者点击通知跳转并发送链接反馈", bug_link)
@@ -1083,13 +1084,13 @@ function Type_Check(subs) {
     var type = "unknown"
     var RuleK = ["host,", "-suffix,", "domain,", "-keyword,", "ip-cidr,", "ip-cidr6,",  "geoip,", "user-agent,", "ip6-cidr,", "ip-asn"];
     var DomainK = ["domain-set,"]
-    var QuanXK = ["shadowsocks=", "trojan=", "vmess=", "http=", "socks5=", "vless=","anytls="];
+    var QuanXK = ["shadowsocks=", "trojan=", "vmess=", "http=", "socks5=", "vless=","anytls=", "hysteria2="];
     var SurgeK = ["=ss,", "=vmess,", "=trojan,", "=http,", "=custom,", "=https,", "=shadowsocks", "=shadowsocksr", "=sock5", "=sock5-tls","=anytls"];
     var ClashK = ["proxies:","\"proxies\":"]
-    var SubK = ["dm1lc3M", "c3NyOi8v", "CnNzOi8", "dHJvamFu", "c3M6Ly", "c3NkOi8v", "c2hhZG93", "aHR0cDovLw", "aHR0cHM6L", "CnRyb2phbjo", "aHR0cD0", "aHR0cCA","U1RBVFVT","dmxlc3M6"];
+    var SubK = ["dm1lc3M", "c3NyOi8v", "CnNzOi8", "dHJvamFu", "c3M6Ly", "c3NkOi8v", "c2hhZG93", "aHR0cDovLw", "aHR0cHM6L", "CnRyb2phbjo", "aHR0cD0", "aHR0cCA","U1RBVFVT","dmxlc3M6", "aHlzdGVyaWEyOi8v", "aHkyOi8v"];
     var RewriteK = [" url 302", " url 307", " url reject", " url script", " url req", " url res", " url echo", " url-and-header 302", " url-and-header 307", " url-and-header reject", " url-and-header script", " url-and-header req", " url-and-header res", " url-and-header echo", " url jsonjq"] // quantumult X 类型 rewrite
     var JsonJQK = [" response-body-json-jq ", " request-body-json-jq ", " response-body-json-del ", " response-body-json-replace "] // 需要转换成 QuanX jsonjq 的 rewrite
-    var SubK2 = ["ss://", "vmess://", "ssr://", "trojan://", "ssd://", "\nhttps://", "\nhttp://","socks://","ssocks://","vless://","anytls://","wireguard://","wg://","tuic://"];
+    var SubK2 = ["ss://", "vmess://", "ssr://", "trojan://", "ssd://", "\nhttps://", "\nhttp://","socks://","ssocks://","vless://","anytls://", "hysteria2://", "hy2://","wireguard://","wg://","tuic://"];
     var ModuleK = ["[Script]", "[Rule]", "[URL Rewrite]", "[Map Local]", "\nhttp-r", "script-path"]
     var QXProfile = ["[filter_local]","[filter_remote]","[server_local]","[server_remote]"]
     var html = "DOCTYPE html"
@@ -1195,7 +1196,8 @@ function TagCheck_QX(content) {
   typefix = {"shadowsocks":["𝐬𝐬","𝐒𝐒","🅢🅢","🆂🆂","ⓢⓢ","🅂🅂","SS"],"shadowsocksr":["𝐬𝐬𝐫","𝐒𝐒𝐑","🅢🅢🅡","🆂🆂🆁","ⓢⓢⓡ","🅂🅂🅁","SSR"],
     "vmess":["𝐯𝐦𝐞𝐬𝐬","𝐕𝐌𝐄𝐒𝐒","🅥🅜🅔🅢🅢","🆅🅼🅴🆂🆂","ⓥⓜⓔⓢⓢ","🅅🄼🄴🅂🅂","VMESS"],"trojan":["𝐭𝐫𝐨𝐣𝐚𝐧","𝐓𝐑𝐎𝐉𝐀𝐍","🅣🅡🅞🅙🅐🅝","🆃🆁🅾🅹🅰🅽","ⓣⓡⓞⓙⓐⓝ","🅃🅁🄾🄹🄰🄽","TROJAN"],
     "http":["𝐡𝐭𝐭𝐩","𝐇𝐓𝐓𝐏","🅗🅣🅣🅟","🅷🆃🆃🅿","ⓗⓣⓣⓟ","🄷🅃🅃🄿","HTTP"],"socks5":["𝐬𝐨𝗰𝗸𝐬","𝐒𝐎𝐂𝐊𝐒","🅢🅞🅒🅚🅢","🆂🅾🅲🅺🆂","ⓢⓄⒸⓀⓢ","🅂🄾🄲🄺🅂","SOCKS"],
-    "vless":["𝐯𝐥𝐞𝐬𝐬","𝐕𝐋𝐄𝐒𝐒","🅥🅛🅔🅢🅢","🆅🅻🅴🆂🆂","ⓥⓛⓔⓢⓢ","🅅🄻🄴🅂🅂","VLESS"],"anytls":["𝐚𝐧𝐲𝐭𝐥𝐬","𝐀𝐍𝐘𝐓𝐋𝐒","🅐🅝🅨🅣🅛🅢","🅰🅽🆈🆃🅻🆂","ⓐⓝⓨⓣⓛⓢ","🄰🄽🅈🅃🄻🅂","𝖠𝖭𝖸𝖳𝖫𝖲"]
+    "vless":["𝐯𝐥𝐞𝐬𝐬","𝐕𝐋𝐄𝐒𝐒","🅥🅛🅔🅢🅢","🆅🅻🅴🆂🆂","ⓥⓛⓔⓢⓢ","🅅🄻🄴🅂🅂","VLESS"],"anytls":["𝐚𝐧𝐲𝐭𝐥𝐬","𝐀𝐍𝐘𝐓𝐋𝐒","🅐🅝🅨🅣🅛🅢","🅰🅽🆈🆃🅻🆂","ⓐⓝⓨⓣⓛⓢ","🄰🄽🅈🅃🄻🅂","𝖠𝖭𝖸𝖳𝖫𝖲"],
+    "hysteria2":["𝐡𝐲𝟐","𝐇𝐘𝟐","🅗🅨②","🅷🆈②","ⓗⓨ②","🄷🅈②","𝕙𝕪𝟚","ʰʸ²","HY2"]
   } // type
   console.log(content)
     var Olist = content.map(item =>item.trim())//.replace(/\s{2,}/g," "))
@@ -1327,7 +1329,7 @@ function titleCase(str) {
 // 类型前缀/后缀
 function type_prefix(item) {
   if(item.trim()!="") {
-    typefix = {"shadowsocks":"「𝐬𝐬」","vmess":"「𝐯𝐦𝐞𝐬𝐬」","trojan":"「𝐭𝐫𝐨𝐣𝐚𝐧」","http":"「𝐡𝐭𝐭𝐩」","socks5":"「𝐬𝐨𝗰𝗸𝐬」","vless":"「𝐯𝐥𝐞𝐬𝐬」","anytls":"「𝐚𝐧𝐲𝐭𝐥𝐬」"}
+    typefix = {"shadowsocks":"「𝐬𝐬」","vmess":"「𝐯𝐦𝐞𝐬𝐬」","trojan":"「𝐭𝐫𝐨𝐣𝐚𝐧」","http":"「𝐡𝐭𝐭𝐩」","socks5":"「𝐬𝐨𝗰𝗸𝐬」","vless":"「𝐯𝐥𝐞𝐬𝐬」","anytls":"「𝐚𝐧𝐲𝐭𝐥𝐬」","hysteria2":"「𝐡𝐲𝟐」"}
     typefix["shadowsocks"]=item.indexOf("ssr-protocol")!=-1? "「𝐬𝐬𝐫」" : "「𝐬𝐬」"
     tp = typefix[item.split("=")[0].trim()]
     return [[item.split("tag=")[0]+
@@ -1336,7 +1338,7 @@ function type_prefix(item) {
 }
 function type_suffix(item) {
   if(item.trim()!=""){
-    typefix={"shadowsocks":"「𝐬𝐬」","vmess":"「𝐯𝐦𝐞𝐬𝐬」","trojan":"「𝐭𝐫𝐨𝐣𝐚𝐧」","http":"「𝐡𝐭𝐭𝐩」","vless":"「𝐯𝐥𝐞𝐬𝐬」","anytls":"「𝐚𝐧𝐲𝐭𝐥𝐬」"}
+    typefix={"shadowsocks":"「𝐬𝐬」","vmess":"「𝐯𝐦𝐞𝐬𝐬」","trojan":"「𝐭𝐫𝐨𝐣𝐚𝐧」","http":"「𝐡𝐭𝐭𝐩」","vless":"「𝐯𝐥𝐞𝐬𝐬」","anytls":"「𝐚𝐧𝐲𝐭𝐥𝐬」","hysteria2":"「𝐡𝐲𝟐」"}
     typefix["shadowsocks"]=item.indexOf("ssr-protocol")!=-1? "「𝐬𝐬𝐫」" : "「𝐬𝐬」"
     tp = typefix[item.split("=")[0].trim()]
     return [item, tp].join(" ")
@@ -1354,7 +1356,8 @@ function getnode_type(item,ind) {
       "http":["𝐡𝐭𝐭𝐩","𝐇𝐓𝐓𝐏","🅗🅣🅣🅟","🅷🆃🆃🅿","ⓗⓣⓣⓟ","🄷🅃🅃🄿","𝕙𝕥𝕥𝕡","ʰᵗᵗᵖ","HTTP"],
       "socks5":["𝐬𝐨𝗰𝗸𝐬","𝐒𝐎𝐂𝐊𝐒","🅢🅞🅒🅚🅢","🆂🅾🅲🅺🆂","ⓢⓞⓒⓚⓢ","🅂🄾🄲🄺🅂","𝕤𝕠𝕔𝕜𝕤","ˢᵒᶜᵏˢ","SOCKS"],
       "vless":["𝐯𝐥𝐞𝐬𝐬","𝐕𝐋𝐄𝐒𝐒","🅥🅛🅔🅢🅢","🆅🅻🅴🆂🆂","ⓥⓛⓔⓢⓢ","🅅🄻🄴🅂🅂","𝕍𝕝𝕖𝕤𝕤","ᵛˡᵉˢˢ","VLESS"],
-      "anytls":["𝐚𝐧𝐲𝐭𝐥𝐬","𝐀𝐍𝐘𝐓𝐋𝐒","🅐🅝🅨🅣🅛🅢","🅰🅽🆈🆃🅻🆂","ⓐⓝⓨⓣⓛⓢ","🄰🄽🅈🅃🄻🅂","𝔸𝕟𝕪𝕥𝕝𝕤","ᴬⁿʸᵗˡˢ","𝖠𝖭𝖸𝖳𝖫𝖲"]
+      "anytls":["𝐚𝐧𝐲𝐭𝐥𝐬","𝐀𝐍𝐘𝐓𝐋𝐒","🅐🅝🅨🅣🅛🅢","🅰🅽🆈🆃🅻🆂","ⓐⓝⓨⓣⓛⓢ","🄰🄽🅈🅃🄻🅂","𝔸𝕟𝕪𝕥𝕝𝕤","ᴬⁿʸᵗˡˢ","𝖠𝖭𝖸𝖳𝖫𝖲"],
+      "hysteria2":["𝐡𝐲𝟐","𝐇𝐘𝟐","🅗🅨②","🅷🆈②","ⓗⓨ②","🄷🅈②","𝕙𝕪𝟚","ʰʸ²","HY2"]
     }
     typefix["shadowsocks"]=item.indexOf("ssr-protocol")!=-1? typefix["shadowsocksr"] : typefix["shadowsocks"]
     tp = typefix[item.split("=")[0].trim()][ind]
@@ -2431,7 +2434,7 @@ function Reality_Handle(cnt) {
 function Subs2QX(subs, Pudp, Ptfo, Pcert0, PTls13) {
   if (Pdbg) {$notify("subs", "node", subs)}
     var list0 = subs.split("\n");
-    var QuanXK = ["shadowsocks=", "trojan=", "vmess=", "http=","socks5=", "vless=", "anytls="];
+    var QuanXK = ["shadowsocks=", "trojan=", "vmess=", "http=","socks5=", "vless=", "anytls=", "hysteria2="];
     var SurgeK = ["=ss,", "=vmess,", "=trojan,", "=http,", "=https,", "=custom,", "=socks5", "=socks5-tls","=anytls"];
     var LoonK = ["=Shadowsocks", "=ShadowsocksR", "=VLESS","=AnyTLS"]
     var QXlist = [];
@@ -2449,7 +2452,13 @@ function Subs2QX(subs, Pudp, Ptfo, Pcert0, PTls13) {
             const NodeCheck2 = (item) => listi.indexOf(item) != -1;
             try {
               if (Pdbg) {$notify(i, type, list0[i])}
-                if (type == "vmess" && (list0[i].indexOf("remark=") == -1 && list0[i].indexOf("remarks=") == -1) && !/(obfs|alterId|type|\@)\=/.test(list0[i])) {
+                if ((/^(hysteria2|hy2)$/i.test(type) || /^hysteria2\s*=/i.test(list0[i].trim())) && version < 965) {
+                    PNS = PNS + 1
+                    NSList.push(numToEmoji10(PNS) + list0[i])
+                } else if (/^(hysteria2|hy2)$/i.test(type)) {
+                    node = HY2QX(list0[i], Pudp, Pcert0)
+                    node = tag0 != "" ? URI_TAG(node, tag0) : node
+                } else if (type == "vmess" && (list0[i].indexOf("remark=") == -1 && list0[i].indexOf("remarks=") == -1) && !/(obfs|alterId|type|\@)\=/.test(list0[i])) {
                     var bnode = Base64.decode(list0[i].split("vmess://")[1])
                     if (bnode.indexOf("over-tls=") == -1) { //v2rayN
                         node = V2QX(list0[i], Pudp, Ptfo, Pcert0, PTls13)
@@ -2508,7 +2517,7 @@ function Subs2QX(subs, Pudp, Ptfo, Pcert0, PTls13) {
                     node = Loon2QX(list0[i])
                 } else if (SurgeK.some(NodeCheck) ) { // Surge type, 第2为端口号
                     node = QX_TLS(Surge2QX(list0[i])[0], Pcert0, PTls13)
-                } else if (type=="hysteria2" || (type=="anytls" && version<914) || type=="tuic" || type=="wireguard"|| type=="wg") { //
+                } else if ((type=="anytls" && version<914) || type=="tuic" || type=="wireguard"|| type=="wg") { //
                   PNS=PNS+1 
                   NSList.push(numToEmoji10(PNS)+list0[i])
                 } else if (/^STATUS\=/.test(listi)) { // flow info fake server
@@ -2574,12 +2583,13 @@ function TLS_Check(cnt) {
 // qx 类型 tls/udp 验证问题t
 function QX_TLS(cnt,Pcert0,PTls13) {
   cnt =cnt.replace(/tag\s*\=/gm,"tag=") //
-  var cert0 = Pcert0 == 1? "tls-verification=true, " : "tls-verification=false, "
+  var isHysteria2 = /^hysteria2\s*=/.test(cnt.trim())
+  var cert0 = Pcert0 == 1 || (isHysteria2 && Pcert0 != -1) ? "tls-verification=true, " : "tls-verification=false, "
   var tls13 = PTls13 == 1? "tls13=true, " : ""
   if(cnt.indexOf("tls-verification") != -1){ // 已有tls参数时, 如用户不指定，则不做处理
     cnt = (Pcert0 == -1 || Pcert0 == 1) ? cnt.replace(RegExp("tls\-verification.*?\,", "gmi"), cert0): cnt
     //cnt = Pcert0 == 1? cnt.replace(RegExp("tls\-verification.*?\,", "gmi"), cert0): cnt
-  } else if(cnt.indexOf("obfs=over-tls")!=-1 || /over\-tls\s*\=\s*true/.test(cnt) || cnt.indexOf("obfs=wss")!=-1){ //未包含tls参数时
+  } else if(isHysteria2 || cnt.indexOf("obfs=over-tls")!=-1 || /over\-tls\s*\=\s*true/.test(cnt) || cnt.indexOf("obfs=wss")!=-1){ //未包含tls参数时
     cnt = cnt.replace(new RegExp("tag\s*\=", "gmi"), cert0+"tag=")
   }
   if (tls13 !="") {
@@ -2589,7 +2599,7 @@ function QX_TLS(cnt,Pcert0,PTls13) {
     cnt = cnt.replace(new RegExp("tag\s*\=", "gmi"), tls13+"tag=")
   }
   }
-  if (!/^(shadowsocks|trojan|vmess|vless|anytls)/.test(cnt.trim())) { //关闭非 ss/ssr/trojan/vmess/vless 类型的 udp
+  if (!/^(shadowsocks|trojan|vmess|vless|anytls|hysteria2)/.test(cnt.trim())) { //关闭非 ss/ssr/trojan/vmess/vless 类型的 udp
     udp =  "udp-relay=false, "
     if(cnt.indexOf("udp-relay") != -1){
       var cnt = cnt.replace(RegExp("udp\-relay.*?\,", "gmi"), udp)
@@ -3016,6 +3026,104 @@ function Anytls2QX(subs,Pcert0) {
   }
 }
 
+// Hysteria 2: Quantumult X 1.9.0 build 965+.
+// Keep this standalone: Quantumult X does not provide Node's URL APIs.
+function HY2QX(subs, pudp, pcert) {
+  var uri = subs.trim().match(/^(?:hysteria2|hy2):\/\/([^/?#]*)(?:\/)?(?:\?([^#]*))?(?:#(.*))?$/i)
+  if (!uri) { throw new Error("Invalid Hysteria 2 URI") }
+  var authority = uri[1]
+  var authIndex = authority.lastIndexOf("@")
+  var password = authIndex == -1 ? "" : decodeURIComponent(authority.slice(0, authIndex))
+  var address = authority.slice(authIndex + 1).match(/^(\[[^\]]+\]|[^:\s]+)(?::([\d,\-]+))?$/)
+  if (!address) { throw new Error("Invalid Hysteria 2 server address") }
+  var params = Object.create(null)
+  var query = uri[2] || ""
+  query.split("&").filter(Boolean).forEach(function(item) {
+    var index = item.indexOf("=")
+    var key = decodeURIComponent(index == -1 ? item : item.slice(0, index))
+    params[key] = decodeURIComponent(index == -1 ? "" : item.slice(index + 1))
+  })
+  var port = address[2] || "443"
+  var ports = params["port-hopping"] || params.mport || params.ports || (/[,\-]/.test(port) ? port : "")
+  return Hysteria2QX({
+    server: address[1],
+    port: port.split(/[,\-]/)[0],
+    password: password,
+    sni: params.sni || params.peer || params["tls-host"],
+    insecure: /^(1|true)$/i.test(params.insecure || params.allowInsecure || ""),
+    obfs: params.obfs,
+    obfsPassword: params["salamander-password"] || params["obfs-password"],
+    ports: ports,
+    hopInterval: params["port-hopping-interval"] || params["hop-interval"] || params.hopInterval || params.mhop,
+    downloadBandwidth: params["download-bandwidth"] || params.downmbps || params.down,
+    fingerprint: params.pinSHA256,
+    udp: pudp != -1,
+    tag: uri[3] ? decodeURIComponent(uri[3]) : "[hysteria2] " + address[1]
+  }, pcert)
+}
+
+function Hysteria2QX(options, pcert) {
+  var server = String(options.server || "").trim()
+  if (!server || /[\s,]/.test(server)) { throw new Error("Invalid Hysteria 2 server") }
+  if (server.indexOf(":") != -1 && server[0] != "[") { server = "[" + server + "]" }
+  var ports = options.ports == null ? "" : String(options.ports).replace(/\s/g, "").replace(/:/g, "-")
+  if (ports) {
+    ports.split(",").forEach(function(range) {
+      if (!/^\d+(?:-\d+)?$/.test(range)) { throw new Error("Invalid Hysteria 2 hopping ports") }
+      var ends = range.split("-").map(Number)
+      if (ends.some(function(port) { return port < 1 || port > 65535 }) || (ends.length == 2 && ends[0] > ends[1])) {
+        throw new Error("Invalid Hysteria 2 hopping port range")
+      }
+    })
+  }
+  var port = options.port == null || options.port === "" ? (ports ? ports.split(/[,\-]/)[0] : "443") : String(options.port)
+  if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) { throw new Error("Invalid Hysteria 2 port") }
+  if (options.obfs && options.obfs != "salamander") { throw new Error("Unsupported Hysteria 2 obfuscation: " + options.obfs) }
+  if (options.obfs == "salamander" && !options.obfsPassword) { throw new Error("Missing Hysteria 2 Salamander password") }
+  var verify = pcert == 1 || (pcert != -1 && !options.insecure)
+  var fields = ["hysteria2=" + server + ":" + port, "password=" + (options.password == null ? "" : options.password)]
+  if (options.obfsPassword) { fields.push("salamander-password=" + options.obfsPassword) }
+  if (ports) {
+    fields.push("port-hopping=" + ports)
+    if (options.hopInterval != null && options.hopInterval !== "") {
+      var interval = String(options.hopInterval).trim().match(/^(\d+(?:\.\d+)?)s?$/i)
+      if (!interval || Number(interval[1]) <= 0) { throw new Error("Invalid Hysteria 2 hopping interval") }
+      fields.push("port-hopping-interval=" + Number(interval[1]))
+    }
+  }
+  if (options.downloadBandwidth != null && options.downloadBandwidth !== "") {
+    var bandwidth = String(options.downloadBandwidth).trim().match(/^(\d+(?:\.\d+)?)\s*([kmg]?bps)?$/i)
+    if (!bandwidth) { throw new Error("Invalid Hysteria 2 download bandwidth") }
+    var units = { bps: 0.000001, kbps: 0.001, mbps: 1, gbps: 1000 }
+    var mbps = Number(bandwidth[1]) * (bandwidth[2] ? units[bandwidth[2].toLowerCase()] : 1)
+    if (mbps > 0) { fields.push("download-bandwidth=" + Number(mbps.toPrecision(12))) }
+  }
+  if (options.sni) { fields.push("tls-host=" + options.sni) }
+  fields.push("tls-verification=" + verify, "udp-relay=" + (options.udp !== false))
+  if (options.fingerprint) { fields.push("tls-cert-sha256=" + String(options.fingerprint).replace(/:/g, "")) }
+  fields.push("tag=" + (options.tag == null ? "[hysteria2] " + server : options.tag))
+  return fields.join(", ")
+}
+
+// Clash/Mihomo Hysteria 2 uses Mbps for down and seconds for hop-interval.
+function CHY2QX(cnt) {
+  return Hysteria2QX({
+    server: cnt.server,
+    port: cnt.port,
+    password: cnt.password,
+    sni: cnt.sni,
+    insecure: cnt["skip-cert-verify"] === true || cnt["skip-cert-verify"] === "true",
+    obfs: cnt.obfs,
+    obfsPassword: cnt["obfs-password"],
+    ports: cnt.ports,
+    hopInterval: cnt["hop-interval"],
+    downloadBandwidth: cnt.down,
+    fingerprint: cnt.fingerprint,
+    udp: cnt.udp !== false && cnt.udp !== "false",
+    tag: ClashNameFix(cnt.name)
+  }, Pcert0)
+}
+
 // Vless uri 转换成 QUANX 格式
 // vless://pwd@a.b.c.gq:443?encryption=none&security=tls&type=ws&host=a.b.c.d&path=dsjdaaaaj#VLESS_WSS
 // Vless Shadowrocket URI
@@ -3289,6 +3397,18 @@ try {
   cnti = tail.length<=1?  cnti : String(hd + ","+tail[1].split("\r")[0] +"," + tag)
   cnti = normalizeQXObfsUriValue(cnti)
   cntis = cnti.split(",").filter(Boolean).map(item => item.trim()) //防止节点名中有,符号而导致的错误情况
+  // A comma-separated hopping port list is one field, not part of the tag.
+  if (/^hysteria2\s*=/.test(cnti.trim())) {
+    cntis = cntis.reduce(function(fields, field) {
+      var last = fields.length - 1
+      if (last >= 0 && /^port-hopping\s*=/.test(fields[last]) && /^\d+(?:-\d+)?$/.test(field)) {
+        fields[last] += "," + field
+      } else {
+        fields.push(field)
+      }
+      return fields
+    }, [])
+  }
   tagfix = ""
   cntii = ""
   for (i in cntis) {
@@ -3317,7 +3437,7 @@ function isQuanX(content) {
         var cnti = cnts[i];
         if (cnti.indexOf("=") != -1 && cnti.indexOf("tag") != -1) {
             var cnt = cnti.split("=")[0].trim()
-            if (cnt == "http" || cnt == "shadowsocks" || cnt == "trojan" || cnt == "vmess" || cnt == "socks5" || cnt == "vless" ||  cnt == "anytls") {
+            if (cnt == "http" || cnt == "shadowsocks" || cnt == "trojan" || cnt == "vmess" || cnt == "socks5" || cnt == "vless" ||  cnt == "anytls" || cnt == "hysteria2") {
                 nlist.push(QXFix(cnti))
             }
         }
@@ -4423,6 +4543,8 @@ function Clash2QX(cnt) {
         node = CS52QX(node)
       } else if (typecc == "vless"){
         node = CVL2QX(node)
+      } else if ((typecc == "hysteria2" || typecc == "hy2") && version >= 965) {
+        node = CHY2QX(node)
       } else if (typecc=="anytls" && version >913) { //anytls
         node = CTLS2QX(node)
       } else { // not support type
@@ -4722,7 +4844,7 @@ function CVL2QX(cnt){
 
 // UDP/TFO 参数 (强制 surge/quanx 类型转换)
 function XUDP(cnt,pudp) {
-  var udp = pudp != -1 && /^(shadowsocks|trojan|vmess|vless|anytls)/.test(cnt.trim()) ? "udp-relay=true, " : "udp-relay=false, "
+  var udp = pudp != -1 && /^(shadowsocks|trojan|vmess|vless|anytls|hysteria2)/.test(cnt.trim()) ? "udp-relay=true, " : "udp-relay=false, "
   if(cnt.indexOf("udp-relay") != -1){
     var cnt0 = cnt.replace(RegExp("udp\-relay.*?\,", "gmi"), udp)
   }else{
