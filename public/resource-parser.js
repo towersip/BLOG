@@ -1244,46 +1244,38 @@ function TagCheck_QX(content) {
     "hysteria2":["𝐡𝐲𝟐","𝐇𝐘𝟐","🅗🅨②","🅷🆈②","ⓗⓨ②","🄷🅈②","𝕙𝕪𝟚","ʰʸ²","HY2"],
       "mieru":["𝐦𝐢𝐞𝐫𝐮","𝐌𝐈𝐄𝐑𝐔","🅜🅘🅔🅡🅤","🅼🅸🅴🆁🆄","ⓜⓘⓔⓡⓤ","🄼🄸🄴🅁🅄","𝕄𝕚𝕖𝕣𝕦","ᵐⁱᵉʳᵘ","MIERU"]
   } // type
-    var Olist = content.map(item =>item.trim())//.replace(/\s{2,}/g," "))
-    //$notify("","",Olist)
-    var [Nlist, nmlist] = [ [], [] ]
-    var [nulllist,duplist] = [ [], [] ]; //记录空名字节点&重名节点
-    var no=0 ;
-    for (var i = 0; i < Olist.length; i++) {
-        var item = Olist[i] ? Olist[i] : ""
-        typefix["shadowsocks"]=item.indexOf("ssr-protocol")!=-1? typefix["shadowsocksr"] : typefix["shadowsocks"]
-        if (item.replace(/ /gm, "").indexOf("tag=") != -1) {
-            var nl = item.slice(item.indexOf("tag"))
-            var nm = nl.slice(nl.indexOf("=") + 1)
-            if (nm == "") { //空名
-                tp = typefix[item.split("=")[0].trim()][3]
-                nm = tp + " | " + item.split("=")[1].split(",")[0].split(":")[0]
-                item = item.split("tag")[0] + "tag=" + nm.replace("shadowsocks", "ss")
-                nulllist.push(nm.replace("shadowsocks", "ss"))
-            }
-            var ni = 0
-            while (nmlist.indexOf(nm) != -1) { //重名情形
-              //$notify("重名",nm,nmlist)
-                nm = ni==0? nm+ NoReplace(ni+1):nm.split(" ").slice(0,nm.split(" ").length-2).join(" ") + NoReplace(ni+1)
-                item = Pdel != 1 ? item.split("tag")[0] + "tag=" + nm : ""
-                ni = ni + 1
-            }
-            if (ni != 0) { duplist.push(nm) }
-            nmlist.push(nm)
-          if (Pcap) { 
-            item = Capitalize(item,Pcap)
-            console.log(item)
-          }
-          if (Pptn || Pnptn) { 
-            item = Pattern(item,Pptn,Pnptn)
-            console.log(item)
-          }
-            ni = 0
-            if (item) {
-            Nlist.push(item)
-          }
-        }// if "tag="
-    } // for
+    var Nlist = [];
+    const names = new Set();
+    var [nulllist,duplist] = [ [], [] ];
+    var no=0;
+    for (let item of content) {
+      item = item.trim();
+      const tagField = /,\s*tag\s*=/.exec(item);
+      if (!tagField) continue;
+      const head = item.slice(0, tagField.index + tagField[0].length);
+      let name = item.slice(head.length);
+      if (!name.trim()) {
+        const protocol = item.split("=", 1)[0].trim();
+        const styles = protocol == "shadowsocks" && item.includes("ssr-protocol") ? typefix.shadowsocksr : typefix[protocol];
+        const address = item.match(/^[^=]+=\s*(\[[^\]]+\]|[^:,]+):\d+/);
+        name = styles[3] + " | " + (address ? address[1] : protocol);
+        nulllist.push(name);
+      }
+      if (names.has(name)) {
+        const original = name;
+        let suffix = 1;
+        do {
+          name = original + NoReplace(suffix++).trimEnd();
+        } while (names.has(name));
+        duplist.push(name);
+        if (Pdel == 1) continue;
+      }
+      names.add(name);
+      item = head + name;
+      if (Pcap) item = Capitalize(item,Pcap);
+      if (Pptn || Pnptn) item = Pattern(item,Pptn,Pnptn);
+      Nlist.push(item);
+    }
     // 增加 server_check_url 参数
     if (PcheckU != "") {
       Nlist = Nlist.map(Add_URL)
@@ -1473,8 +1465,8 @@ function tag_handle(item) {
 
 // 用于单条 URI 的 tag 参数, 直接指定节点名
 function URI_TAG(cnt0,tag0) {
-  cnt0 = cnt0.split("tag=")[0] + "tag=" + tag0
-  return cnt0
+  if (!cnt0) return cnt0;
+  return cnt0.replace(/,\s*tag\s*=.*$/i, () => ", tag=" + tag0);
 }
 
 // 方便代理链的实现
@@ -2539,13 +2531,13 @@ function Subs2QX(subs, Pudp, Ptfo, Pcert0, PTls13) {
             var type = uriScheme ? uriScheme[1].toLowerCase() : "";
             if (uriScheme) list0[i] = list0[i].trim().replace(uriScheme[0], type + "://");
             var listi = list0[i].replace(/\s/g, "")
-            var tag0 = list0[i].indexOf("tag=")!=-1 ? list0[i].split(/\&*(emoji|udp|tfo|cert|rename|replace)\=/)[0].split("tag=")[1] : ""
             list0[i] = (type=="ssr") ? list0[i].split(/#|,|，/)[0] : list0[i] // 2023-04-18 remove type == "vmess" ||
             const NodeCheck = (item) => listi.toLowerCase().indexOf(item) != -1;
             const NodeCheck1 = (item) => listi.toLowerCase().indexOf(item) == 0;
             const NodeCheck2 = (item) => listi.indexOf(item) != -1;
             try {
               if (Pdbg) {$notify(i, type, list0[i])}
+                const tag0 = type ? NodeURIOption(list0[i], "tag") : "";
                 const nativeType = (listi.match(/^([a-z][a-z0-9]*)=/i) || [])[1];
                 const protocol = type || (nativeType || "").toLowerCase();
                 if (!SupportsNodeBuild(protocol, list0[i])) {
@@ -3051,6 +3043,13 @@ function SSR2QX(subs, Pudp, Ptfo) {
     return QX;
 }
 
+function NodeURIUserInfo(uri) {
+  const authority = uri.split(/[/?#]/, 1)[0];
+  const at = authority.lastIndexOf("@");
+  if (at < 1) throw new Error("Missing node credentials");
+  return {endpoint: authority.slice(at + 1), password: decodeURIComponent(authority.slice(0, at))};
+}
+
 // AnyTLS uri 转换成 quanx 格式
 //anytls://pwd@name:443?peer=xxx.com&udp=1#US-A-ANYTLS-0.5%E5%80%8D%E7%8E%8
 // tls with reality
@@ -3061,8 +3060,9 @@ function Anytls2QX(subs,Pcert0) {
     var Nanytls=[];
     var cnt=subs.split("anytls://")[1]
     type="anytls=";
-    ip = cnt.split("@")[1].split("encry")[0].split("?")[0];
-    pwd = cnt.split("@")[0]? "password=" + cnt.split("@")[0]:"";
+    const auth = NodeURIUserInfo(cnt);
+    ip = auth.endpoint;
+    pwd = "password=" + auth.password;
     ptls="over-tls=true"
     pcert = cnt.indexOf("allowInsecure=0") != -1 ? "tls-verification=true" : "tls-verification=false";
     if (Pcert0 == 0) { 
@@ -3138,9 +3138,9 @@ function Hysteria2QX(options, pcert) {
   }
   var port = options.port == null || options.port === "" ? (ports ? ports.split(/[,\-]/)[0] : "443") : String(options.port)
   if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) { throw new Error("Invalid Hysteria 2 port") }
-  var obfs = options.obfs
-  if (obfs && obfs != "salamander" && obfs != "gecko") { throw new Error("Unsupported Hysteria 2 obfuscation: " + obfs) }
-  var salamander = options.salamanderPassword || (obfs != "gecko" && !options.geckoPassword ? options.obfsPassword : "")
+  var obfs = String(options.obfs || "").trim().toLowerCase()
+  if (obfs && obfs != "none" && obfs != "salamander" && obfs != "gecko") { throw new Error("Unsupported Hysteria 2 obfuscation: " + obfs) }
+  var salamander = options.salamanderPassword || (obfs != "gecko" && obfs != "none" && !options.geckoPassword ? options.obfsPassword : "")
   var gecko = options.geckoPassword || (obfs == "gecko" ? options.obfsPassword : "")
   if ((salamander && gecko) || (obfs == "salamander" && gecko)) { throw new Error("HY2 Gecko and Salamander cannot be combined") }
   if ((obfs == "salamander" && !salamander) || (obfs == "gecko" && !gecko)) { throw new Error("Missing Hysteria 2 obfuscation password") }
@@ -3208,8 +3208,9 @@ function VL2QX(subs, Pudp, Ptfo, Pcert0, PTls13) {
   thost=""
   if((cnt.indexOf("remarks=")==-1 && cnt.indexOf("remark=")==-1) && cnt.indexOf("@")!=-1) { // normal URI
   typeU = "URI"
-  ip = cnt.split("@")[1].split("encry")[0].split("?")[0];
-  pwd = cnt.split("@")[0]? "password=" + cnt.split("@")[0]:"";
+  const auth = NodeURIUserInfo(cnt);
+  ip = auth.endpoint;
+  pwd = "password=" + auth.password;
   pcert = cnt.indexOf("allowInsecure=0") != -1 ? "tls-verification=true" : "tls-verification=false";
   thost = cnt.indexOf("sni=") != -1? "tls-host="+cnt.split("sni=")[1].split(/&|#/)[0]:""
   thost = cnt.indexOf("peer=") != -1? "tls-host="+cnt.split("peer=")[1].split(/&|#/)[0]:thost
@@ -3335,13 +3336,10 @@ function SS2QX(subs, Pudp, Ptfo) {
   // SIP002 的凭据既可能是 Base64，也可能是 method:password 明文格式。
   // 按最后一个 @ 分隔凭据与端点，避免把 IPv6 地址中的冒号当成格式判断依据。
   if (atIndex != -1) {
-    let userinfo = cntt.slice(0, atIndex)
-    ip = cntt.slice(atIndex + 1).split("/")[0].split("?")[0];
-    if(userinfo.indexOf(":") == -1){
-      pwdmtd = Base64.decode(userinfo.replace(/-/g, "+").replace(/_/g, "/").replace(/(%3D)|(\=)/g,"")).split("\u0000")[0].split(":")
-    } else {
-      pwdmtd = decodeURIComponent(userinfo).split(":")
-    }
+    const userinfo = decodeURIComponent(cntt.slice(0, atIndex));
+    ip = cntt.slice(atIndex + 1).split(/[/?]/, 1)[0];
+    const credentials = userinfo.includes(":") ? userinfo : Base64.decode(userinfo).split("\u0000", 1)[0];
+    pwdmtd = credentials.split(":");
   } else if (cntt.indexOf("?")==-1) { // 后部 b64 encode 类型
     var cnt0 = Base64.decode(cnt.split("#")[0].replace(/-/g, "+").replace(/_/g, "/").split("\u0000")[0]);
     ip = cnt0.split("@")[1].split("#")[0].split("/")[0];
@@ -3413,7 +3411,7 @@ QuanX 不支持 path/uri 中包含逗号，因此在 QXFix 内部拆字段前，
 */
 // 纠正部分不规范的写法(没有把 tag 写在最后)
 function QXFix(cntf) {
-var cnti = cntf.replace(/\s*tag\s*\=/g,"tag=").replace("chacha20-poly","chacha20-ietf-poly")
+var cnti = cntf.replace(/,\s*tag\s*=/i, ",tag=").replace(/,\s*method\s*=\s*chacha20-poly1305(?=\s*,)/i, ", method=chacha20-ietf-poly1305")
 try {
   function normalizeQXObfsUriValue(str) {
     var fieldK = "(password|method|udp-relay|udp-over-tcp|fast-open|obfs|obfs-host|obfs-uri|over-tls|tls-host|tls-verification|tls13|aead|tag|username|tls-alpn|server_check_url|tls-cert-sha256|tls-pubkey-sha256|reality-base64-pubkey|reality-hex-shortid|vless-flow)";
