@@ -2502,16 +2502,48 @@ function SupportsNodeBuild(protocol, line) {
   return version >= 965 && (!gecko || version >= 969);
 }
 
-function IsValidQXNode(node) {
-  const address = node.match(/^(\w+)\s*=\s*(\[[^\]\s,]+\]|[^\s,:]+):(\d+)\s*,/);
-  if (!address || /^(?:undefined|null)$/i.test(address[2]) || Number(address[3]) < 1 || Number(address[3]) > 65535) return false;
+function IsIPv6Literal(address) {
+  const octets = address.match(/(?:^|:)(\d+\.\d+\.\d+\.\d+)$/);
+  if (octets) {
+    if (octets[1].split(".").some(octet => Number(octet) > 255)) return false;
+    address = address.slice(0, -octets[1].length) + "0:0";
+  }
+  const halves = address.split("::");
+  if (halves.length > 2) return false;
+  const groups = halves.flatMap(half => half ? half.split(":") : []);
+  return groups.every(group => /^[\da-f]{1,4}$/i.test(group)) &&
+    (halves.length == 2 ? groups.length < 8 : groups.length == 8);
+}
+
+function NormalizeQXNodeEndpoint(node) {
+  return node.replace(/^(\w+\s*=\s*)([^,]+)(?=,)/, (match, prefix, endpoint) => {
+    let value = endpoint.trim();
+    if (/%(?:5b|5d|3a)/i.test(value)) {
+      try { value = decodeURIComponent(value) } catch (_) { return match }
+    }
+    const bracketed = value.match(/^\[([^\]]+)\]\s*:\s*(\d+)$/);
+    if (bracketed) return prefix + "[" + bracketed[1] + "]:" + bracketed[2];
+    const parts = value.match(/^([^\s]+?)\s*:\s*(\d+)$/);
+    if (!parts) return match;
+    const host = parts[1];
+    if (!host.includes(":")) return prefix + host + ":" + parts[2];
+    return IsIPv6Literal(host) ? prefix + "[" + host + "]:" + parts[2] : match;
+  });
+}
+
+function QXNodeFieldError(node) {
+  const address = node.match(/^(\w+)\s*=\s*(\[[^\]\s,]+\]|[^\s,:[\]/?#@]+):(\d+)\s*,/);
+  if (!address || /^(?:undefined|null)$/i.test(address[2])) return "服务器地址格式无效或缺少端口";
+  const port = Number(address[3]);
+  if (port < 1 || port > 65535) return "端口超出 1–65535";
   const fields = node.split(/,\s*tag\s*=/i, 1)[0];
   const value = name => (fields.match(new RegExp(",\\s*" + name + "\\s*=\\s*([^,]*)", "i")) || [])[1];
   const present = name => value(name) && !/^(?:undefined|null)$/i.test(value(name).trim());
   const protocol = address[1].toLowerCase();
-  if (protocol == "shadowsocks" && !present("method")) return false;
-  if (protocol == "mieru" && !present("username")) return false;
-  return !/^(?:shadowsocks|trojan|vmess|vless|anytls|mieru)$/.test(protocol) || present("password");
+  if (protocol == "shadowsocks" && !present("method")) return "缺少 Shadowsocks 加密方法";
+  if (protocol == "mieru" && !present("username")) return "缺少用户名";
+  if (/^(?:shadowsocks|trojan|vmess|vless|anytls|mieru)$/.test(protocol) && !present("password")) return "缺少密码或节点 ID";
+  return "";
 }
 
 //混合订阅类型，用于未整体进行 base64 encode 以及已经 decode 后的类型
@@ -2604,8 +2636,10 @@ function Subs2QX(subs, Pudp, Ptfo, Pcert0, PTls13) {
                 if (Pcsha256 != "" || Ppsha256 != "") candidate = SHA256_Handle(candidate, Pcsha256, Ppsha256);
                 if (Palpn != "") candidate = ALPN_Handle(candidate, Palpn);
                 candidate = TLS_Check(candidate);
-                if (!IsValidQXNode(candidate)) {
-                  failedList.push("第 " + (i + 1) + " 行 · 节点字段无效");
+                candidate = NormalizeQXNodeEndpoint(candidate);
+                const error = QXNodeFieldError(candidate);
+                if (error) {
+                  failedList.push("第 " + (i + 1) + " 行 · " + (protocol || "节点") + " · " + error);
                   continue;
                 }
                 if (Pudp != 0) candidate = XUDP(candidate, Pudp);
@@ -3331,13 +3365,14 @@ function SS2QX(subs, Pudp, Ptfo) {
   var cnt = subs.split("ss://")[1]
   QX=""
   type = "shadowsocks=";
-  let cntt = cnt.split("#")[0]
-  let atIndex = cntt.lastIndexOf("@")
+  const cntt = cnt.split("#", 1)[0];
+  const authority = cntt.split("?", 1)[0];
+  const atIndex = authority.lastIndexOf("@");
   // SIP002 的凭据既可能是 Base64，也可能是 method:password 明文格式。
   // 按最后一个 @ 分隔凭据与端点，避免把 IPv6 地址中的冒号当成格式判断依据。
   if (atIndex != -1) {
-    const userinfo = decodeURIComponent(cntt.slice(0, atIndex));
-    ip = cntt.slice(atIndex + 1).split(/[/?]/, 1)[0];
+    const userinfo = decodeURIComponent(authority.slice(0, atIndex));
+    ip = authority.slice(atIndex + 1).split("/", 1)[0];
     const credentials = userinfo.includes(":") ? userinfo : Base64.decode(userinfo).split("\u0000", 1)[0];
     pwdmtd = credentials.split(":");
   } else if (cntt.indexOf("?")==-1) { // 后部 b64 encode 类型
@@ -4621,7 +4656,12 @@ function ClashNodes2QX(proxies) {
         default: RecordUnsupportedNode(protocol); continue;
       }
       if (!node) continue;
-      if (!IsValidQXNode(node)) throw new Error("Invalid node fields");
+      node = NormalizeQXNodeEndpoint(node);
+      const error = QXNodeFieldError(node);
+      if (error) {
+        if (Pntf0 != 0) $notify("⚠️ 已跳过无效订阅节点", "第 " + (index + 1) + " 条 · " + protocol, error);
+        continue;
+      }
       nodes.push(node);
     } catch (err) {
       if (Pntf0 != 0) $notify("⚠️ 已跳过无效订阅节点", "第 " + (index + 1) + " 条 · " + (protocol || "节点"), err.name);
